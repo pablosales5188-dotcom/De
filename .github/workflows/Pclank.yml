@@ -1,0 +1,78 @@
+name: Windows RDP Performance Max
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Criar Usuário Exclusivo para Conexão
+        shell: pwsh
+        run: |
+          Write-Host "Criando usuário exclusivo 'jogos'..." -ForegroundColor Green
+          $Password = ConvertTo-SecureString "Senha123!" -AsPlainText -Force
+          New-LocalUser -Name "jogos" -Password $Password -Description "Usuario RDP" -FullName "Usuario RDP"
+          Add-LocalGroupMember -Group "Administrators" -Member "jogos"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "jogos"
+          Write-Host "Usuário 'jogos' configurado!" -ForegroundColor Green
+
+      - name: Configurar e Ativar RDP (Acesso Remoto)
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          Write-Host "RDP Ativado!" -ForegroundColor Green
+
+      - name: 🚀 Tweak de Alto Desempenho do Windows
+        shell: pwsh
+        run: |
+          Write-Host "Aplicando otimizações de sistema..." -ForegroundColor Green
+          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "BPP" -Value 16 -PropertyType DWORD -Force
+          New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinFrameRate" -Value 60 -PropertyType DWORD -Force
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
+          Write-Host "Otimizações aplicadas!" -ForegroundColor Green
+
+      - name: 🎮 Instalar Componentes de Jogo e Driver Virtual
+        shell: pwsh
+        run: |
+          Write-Host "Instalando Tailscale, Google Chrome e Pacote DirectX..." -ForegroundColor Green
+          # Instala os programas base e o pacote de atualizações do DirectX para jogos antigos/leves
+          choco install tailscale googlechrome directx -y --no-progress
+          
+          Write-Host "Instalando Driver de Tela Virtual para suporte a Jogos..." -ForegroundColor Green
+          # Instala um driver de monitor virtual para dar suporte a resoluções exigidas por jogos
+          choco install virtual-display-driver -y --no-progress --ignore-checksums || Write-Host "Aviso: Driver virtual pode exigir configuração manual." -ForegroundColor Yellow
+          
+          Start-Sleep -Seconds 5
+
+      - name: Iniciar e Conectar o Tailscale
+        shell: pwsh
+        run: |
+          Write-Host "Conectando à rede Tailscale..." -ForegroundColor Green
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=enigmano-35924282545 --accept-routes
+          Write-Host "IP da Máquina Virtual:" -ForegroundColor Cyan
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+
+      - name: Manter o PC Virtual Ativo
+        shell: pwsh
+        run: |
+          Write-Host "==========================================================" -ForegroundColor Green
+          Write-Host "PC Virtual Pronto com Suporte Gráfico Básico!" -ForegroundColor Green
+          Write-Host "CREDENCIAIS NO WINDOWS APP:" -ForegroundColor Yellow
+          Write-Host "Usuário: jogos" -ForegroundColor Cyan
+          Write-Host "Senha: Senha123!" -ForegroundColor Cyan
+          Write-Host "==========================================================" -ForegroundColor Green
+          
+          $i = 0
+          while ($i -lt 360) {
+              Start-Sleep -Seconds 60
+              $i++
+          }
+          
