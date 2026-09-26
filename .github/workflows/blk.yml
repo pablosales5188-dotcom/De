@@ -1,0 +1,89 @@
+name: Linux Wayland Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  wayland-session:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🔐 Baixar e Conectar o Tailscale (Portátil / Sem APT)
+        run: |
+          echo "Baixando o pacote binário do Tailscale..."
+          # Baixa o pacote compactado oficial do Tailscale
+          curl -sGS "https://tailscale.com" -o tailscale.tgz
+          
+          echo "Extraindo os arquivos..."
+          tar -xzf tailscale.tgz
+          cd tailscale_*_amd64
+          
+          echo "Movendo executáveis para o sistema..."
+          sudo cp tailscale tailscaled /usr/local/bin/
+          
+          echo "Iniciando o serviço do Tailscale em segundo plano..."
+          # Inicializa o daemon do Tailscale diretamente usando memória temporária
+          sudo tailscaled --state=mem: &
+          
+          # Aguarda 5 segundos para o daemon carregar totalmente
+          sleep 5
+          
+          echo "Conectando à rede Tailscale..."
+          # Conecta a máquina virtual usando o seu Secret cadastrado no GitHub
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=linux-wayland-pc --accept-routes
+          
+          echo "IP do seu Linux Virtual:"
+          tailscale ip -4
+
+      - name: 🖥️ Instalar Wayland, Cage e Sunshine
+        run: |
+          sudo apt-get update
+          
+          # Instala dependências de interface gráfica, Wayland, PipeWire e o compositor Cage
+          sudo apt-get install -y --no-install-recommends \
+            wayland-protocols \
+            cage \
+            xwayland \
+            pipewire \
+            pipewire-media-session \
+            dbus-x11 \
+            zenity \
+            libgl1-mesa-dri
+
+          # Baixa e instala o Sunshine para Linux (servidor do Moonlight)
+          sudo wget https://github.com -O sunshine.deb
+          sudo apt-get install -y ./sunshine.deb
+          
+      - name: 🚀 Iniciar Sessão Wayland em Segundo Plano
+        run: |
+          echo "Iniciando ambiente Wayland com Cage..."
+          
+          # Configura as pastas temporárias obrigatórias do Wayland no Ubuntu
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          if [ ! -d "$XDG_RUNTIME_DIR" ]; then
+            sudo mkdir -p $XDG_RUNTIME_DIR
+            sudo chmod 700 $XDG_RUNTIME_DIR
+            sudo chown runner:runner $XDG_RUNTIME_DIR
+          fi
+          
+          # Executa o Cage (Wayland) abrindo o Sunshine em segundo plano
+          dbus-run-session cage -- sunshine > sunshine.log 2>&1 &
+          echo "Sessão Wayland e Sunshine prontas!"
+
+      - name: 🟢 Manter a Máquina Viva
+        run: |
+          echo "=========================================================="
+          echo "PC Linux Wayland conectado com sucesso!"
+          echo "Dispositivo no Tailscale: linux-wayland-pc"
+          echo "Abra o painel do Sunshine no seu navegador real usando:"
+          echo "https://IP_DO_TAILSCALE:47990"
+          echo "=========================================================="
+          
+          # Loop para manter a máquina ativa no GitHub Actions por até 6 horas
+          for i in {1..360}; do
+            sleep 60
+          done
+          
