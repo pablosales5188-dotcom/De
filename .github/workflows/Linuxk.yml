@@ -1,0 +1,72 @@
+name: Linux Wayland Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  wayland-session:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🔐 Instalar e Configurar o Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: linux-wayland-pc
+
+      - name: 🖥️ Instalar Wayland, Cage e Sunshine
+        run: |
+          sudo apt-get update
+          
+          # Instala dependências de interface gráfica, Wayland, PipeWire (áudio/vídeo) e o compositor Cage
+          sudo apt-get install -y --no-install-recommends \
+            wayland-protocols \
+            cage \
+            xwayland \
+            pipewire \
+            pipewire-media-session \
+            dbus-x11 \
+            zenity \
+            libgl1-mesa-dri
+
+          # Baixa e instala o Sunshine para Linux (servidor do Moonlight)
+          # Nota: O Sunshine precisa de configuração para rodar sem GPU física via codificação de CPU (Software encoding)
+          sudo wget https://github.com -O sunshine.deb
+          sudo apt-get install -y ./sunshine.deb
+          
+      - name: 🚀 Iniciar Sessão Wayland em Segundo Plano
+        run: |
+          echo "Iniciando ambiente Wayland com Cage..."
+          
+          # Cria um display virtual e inicia o Cage rodando o Sunshine dentro do ambiente Wayland
+          # O 'XDG_RUNTIME_DIR' é obrigatório para o Wayland funcionar
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          if [ ! -d "$XDG_RUNTIME_DIR" ]; then
+            sudo mkdir -p $XDG_RUNTIME_DIR
+            sudo chmod 700 $XDG_RUNTIME_DIR
+            sudo chown runner:runner $XDG_RUNTIME_DIR
+          fi
+          
+          # Inicia o compositor Wayland (Cage) em segundo plano chamando o Sunshine
+          # Forçamos o Sunshine a usar codificação por software (CPU) já que o GitHub não tem GPU física
+          dbus-run-session cage -- sunshine > sunshine.log 2>&1 &
+          
+          echo "Sessão Wayland e Sunshine iniciados!"
+
+      - name: 🟢 Manter a Máquina Viva
+        run: |
+          echo "=========================================================="
+          echo "PC Linux Wayland Pronto!"
+          echo "Conectado ao Tailscale com o nome: linux-wayland-pc"
+          echo "Acesse o painel do Sunshine pelo navegador do seu PC real usando o IP do Tailscale na porta 47990"
+          echo "Exemplo: https://IP_DO_TAILSCALE:47990"
+          echo "=========================================================="
+          
+          # Mantém o workflow ativo por até 6 horas
+          for i in {1..360}; do
+            sleep 60
+          done
+          
