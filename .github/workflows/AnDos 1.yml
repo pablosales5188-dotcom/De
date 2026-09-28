@@ -1,97 +1,81 @@
-name: "AnDos: Windows 10 Max Performance"
+name: "AnDos: Linux XFCE Max Performance"
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: ubuntu-latest
 
     steps:
       - name: 📂 Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: 👥 Criar Usuário Gamer Dedicado
-        shell: pwsh
+      - name: 🚀 Atualizar Sistema e Instalar Interface Gráfica (XFCE)
         run: |
-          Write-Host "Criando usuário exclusivo 'jogos'..." -ForegroundColor Green
-          $Password = ConvertTo-SecureString "Senha123!" -AsPlainText -Force
-          New-LocalUser -Name "jogos" -Password $Password -Description "Usuario Gamer" -FullName "Jogador"
-          Add-LocalGroupMember -Group "Administrators" -Member "jogos"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "jogos"
+          echo "Atualizando listas de pacotes..."
+          sudo apt-get update
+          
+          echo "Instalando o ambiente gráfico XFCE e o servidor RDP (Xrdp)..."
+          sudo apt-get install -y xfce4 xfce4-goodies xrdp
+          
+          echo "Configurando a sessão padrão do XFCE..."
+          echo "xfce4-session" > ~/.xsession
+          sudo systemctl restart xrdp
 
-      - name: 🔒 Configurar Acesso RDP Otimizado
-        shell: pwsh
+      - name: 💾 Configurar Memória Swap Otimizada
         run: |
-          Write-Host "Liberando e configurando conexoes remotas..." -ForegroundColor Green
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          echo "Criando arquivo Swap de 4GB para estabilidade de performance..."
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
-      - name: 🚀 Tweaks de Desempenho Max Performance (Lite Mode)
-        shell: pwsh
+      - name: 👥 Criar Usuário Dedicado
         run: |
-          Write-Host "Aplicando otimizacoes de desempenho do AnDos..." -ForegroundColor Green
+          echo "Criando usuário exclusivo 'jogos'..."
+          # Cria o usuário com a senha 'Senha123!' previamente criptografada
+          sudo useradd -m -s /bin/bash -p "$(openssl passwd -1 Senha123!)" jogos
           
-          # Ativa o plano de energia de Desempenho Máximo (Ultimate Performance)
-          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          # Adiciona o usuário ao grupo administrativo (sudo)
+          sudo usermod -aG sudo jogos
           
-          # Ajusta o RDP para forçar maior taxa de quadros (60 FPS) e menor compressão de cor para reduzir latência
-          $RdpKey = 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
-          New-ItemProperty -Path $RdpKey -Name "BPP" -Value 16 -PropertyType DWORD -Force | Out-Null
-          New-ItemProperty -Path $RdpKey -Name "MinFrameRate" -Value 60 -PropertyType DWORD -Force | Out-Null
-          
-          # Desativa efeitos visuais pesados (Animações de janelas, sombras, transições)
-          $VisualFXPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
-          if (-not (Test-Path $VisualFXPath)) { New-Item -Path $VisualFXPath -Force | Out-Null }
-          Set-ItemProperty -Path $VisualFXPath -Name "VisualFXSetting" -Value 2
-          
-          # Desativa serviços de telemetria e diagnósticos em segundo plano para liberar CPU e RAM
-          Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
-          Stop-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
-          
-          # Otimização de Rede (Redução de latência / TCP No Delay)
-          $InterfacesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
-          Get-ChildItem $InterfacesPath | ForEach-Object {
-              New-ItemProperty -Path $_.PsPath -Name "TcpAckFrequency" -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue | Out-Null
-              New-ItemProperty -Path $_.PsPath -Name "TCPNoDelay" -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue | Out-Null
-          }
+          # Garante que o ambiente gráfico padrão do usuário jogos também seja o XFCE
+          echo "xfce4-session" | sudo tee /home/jogos/.xsession
+          sudo chown jogos:jogos /home/jogos/.xsession
 
       - name: 🌐 Instalar e Conectar via Tailscale
-        shell: pwsh
         run: |
-          Write-Host "Instalando o cliente Tailscale corporativo..." -ForegroundColor Green
-          choco install tailscale -y --no-progress
-          Start-Sleep -Seconds 5
+          echo "Baixando o script de instalação oficial do Tailscale..."
+          curl -fsSL https://tailscale.com -o install_tailscale.sh
           
-          Write-Host "Autenticando na rede privada..." -ForegroundColor Green
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=andos-max-pc --accept-routes
+          echo "Executando o instalador via Bash..."
+          sudo bash install_tailscale.sh
           
-          Write-Host "Seu endereço IP privado do Tailscale para conexao:" -ForegroundColor Cyan
-          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          echo "Autenticando na sua rede privada Tailscale..."
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=andos-linux-pc --accept-routes
 
       - name: 🟢 Exibir Credenciais e Manter Ativo
-        shell: pwsh
         run: |
-          $TailscaleIP = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          # Captura o endereço IP do Tailscale atribuído à máquina
+          TAILSCALE_IP=$(tailscale ip -4)
           
-          Clear-Host
-          Write-Host "==========================================================" -ForegroundColor Green
-          Write-Host "   AnDos: Windows 10 Max Performance Iniciado com Sucesso! " -ForegroundColor Green
-          Write-Host "==========================================================" -ForegroundColor Green
-          Write-Host "COPIE E COLE ESSES DADOS NO SEU WINDOWS APP / RDP CLIENT:" -ForegroundColor Yellow
-          Write-Host ""
-          Write-Host " -> PC Name / IP:   $TailscaleIP" -ForegroundColor LightGreen
-          Write-Host " -> User Name:      jogos" -ForegroundColor LightGreen
-          Write-Host " -> Password:       Senha123!" -ForegroundColor LightGreen
-          Write-Host ""
-          Write-Host "==========================================================" -ForegroundColor Green
-          Write-Host "Aguardando conexões remotas. O workflow fechará após o tempo limite." -ForegroundColor Yellow
+          clear
+          echo "=========================================================="
+          echo "   AnDos: Linux XFCE Performance Iniciado com Sucesso!   "
+          echo "=========================================================="
+          echo "COPIE E COLE ESSES DADOS NO SEU WINDOWS APP / RDP CLIENT:"
+          echo ""
+          echo " -> PC Name / IP:   $TAILSCALE_IP"
+          echo " -> User Name:      jogos"
+          echo " -> Password:       Senha123!"
+          echo ""
+          echo "=========================================================="
+          echo "Aguardando conexões remotas. O workflow fechará após o tempo limite."
           
-          # Loop para manter a máquina virtual ligada por até 6 horas
-          $i = 0
-          while ($i -lt 360) {
-              Start-Sleep -Seconds 60
-              $i++
-          }
+          # Mantém a execução ativa em segundo plano
+          for i in {1..360}; do
+              sleep 60
+          done
           
