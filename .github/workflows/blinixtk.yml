@@ -1,0 +1,67 @@
+name: "AnDos: Linux XFCE Max Performance"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📂 Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🚀 Atualizar Sistema e Instalar Interface Gráfica (XFCE)
+        run: |
+          echo "Atualizando pacotes e instalando ambiente XFCE..."
+          sudo apt-get update
+          # Instala o ambiente XFCE leve (base do Linux Mint XFCE) e o servidor RDP
+          sudo apt-get install -y xfce4 xfce4-goodies xrdp
+          
+          # Configura o Xrdp para usar o XFCE como interface padrão
+          echo "xfce4-session" > ~/.xsession
+          sudo systemctl restart xrdp
+
+      - name: 👥 Criar Usuário Dedicado
+        run: |
+          echo "Criando usuário exclusivo 'jogos'..."
+          # Cria o usuário com a senha 'Senha123!' criptografada
+          sudo useradd -m -s /bin/bash -p "$(openssl passwd -1 Senha123!)" jogos
+          # Adiciona o usuário ao grupo de administradores (sudo)
+          sudo usermod -aG sudo jogos
+          
+          # Configura a sessão do XFCE também para o novo usuário
+          echo "xfce4-session" | sudo tee /home/jogos/.xsession
+          sudo chown jogos:jogos /home/jogos/.xsession
+
+      - name: 🌐 Instalar e Conectar via Tailscale
+        run: |
+          echo "Instalando o cliente Tailscale..."
+          curl -fsSL https://tailscale.com | sh
+          
+          echo "Autenticando na rede privada..."
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=andos-linux-pc --accept-routes
+
+      - name: 🟢 Exibir Credenciais e Manter Ativo
+        run: |
+          # Captura o IP gerado pelo Tailscale
+          TAILSCALE_IP=$(tailscale ip -4)
+          
+          clear
+          echo "=========================================================="
+          echo "   AnDos: Linux XFCE Performance Iniciado com Sucesso!   "
+          echo "=========================================================="
+          echo "COPIE E COLE ESSES DADOS NO SEU WINDOWS APP / RDP CLIENT:"
+          echo ""
+          echo " -> PC Name / IP:   $TAILSCALE_IP"
+          echo " -> User Name:      jogos"
+          echo " -> Password:       Senha123!"
+          echo ""
+          echo "=========================================================="
+          echo "Aguardando conexões remotas. O workflow fechará após o tempo limite."
+          
+          # Loop para manter a máquina virtual ativa por até 6 horas
+          for i in {1..360}; do
+              sleep 60
+          done
+          
