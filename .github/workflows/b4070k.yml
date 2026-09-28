@@ -27,46 +27,31 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
 
-      - name: 🕶️ Aplicar Deep Anti-VM Bypass & GPU Falsa (RTX 4070)
-        shell: pwsh
+      - name: 🕶️ Aplicar Camuflagem de Hardware (Core i9 + RTX 4070)
+        shell: cmd
         run: |
-          Write-Host "Aplicando camuflagem profunda de hardware..." -ForegroundColor Green
+          echo Aplicando bypass de hardware e inserindo placa de video fake...
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "SystemManufacturer" /t REG_SZ /d "ASUSTeK COMPUTER INC." /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "SystemProductName" /t REG_SZ /d "ROG STRIX Z790-E GAMING WIFI" /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\SystemInformation" /v "BIOSVersion" /t REG_SZ /d "American Megatrends Inc. 2102" /f
+          reg add "HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0" /v "ProcessorNameString" /t REG_SZ /d "Intel(R) Core(TM) i9-14900K CPU @ 3.20GHz" /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v "ProductName" /t REG_SZ /d "Windows 10 Pro" /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v "EditionID" /t REG_SZ /d "Professional" /f
           
-          # 1. Altera informações da BIOS e Placa-Mãe para marcas reais
-          $HardwareKey = "HKLM:\SYSTEM\CurrentControlSet\Control\SystemInformation"
-          Set-ItemProperty -Path $HardwareKey -Name "SystemManufacturer" -Value "ASUSTeK COMPUTER INC." -Force
-          Set-ItemProperty -Path $HardwareKey -Name "SystemProductName" -Value "ROG STRIX Z790-E GAMING WIFI" -Force
-          Set-ItemProperty -Path $HardwareKey -Name "BIOSVersion" -Value "American Megatrends Inc. 2102" -Force
-          Set-ItemProperty -Path $HardwareKey -Name "BIOSReleaseDate" -Value "01/15/2026" -Force
-          
-          # 2. Esconde identificadores de Hyper-V no registro da CPU
-          $IntelKey = "HKLM:\HARDWARE\DESCRIPTION\System\CentralProcessor\0"
-          Set-ItemProperty -Path $IntelKey -Name "ProcessorNameString" -Value "Intel(R) Core(TM) i9-14900K CPU @ 3.20GHz" -Force
-          
-          # 3. Engana o sistema alterando o ID do produto para parecer o Windows 10 Pro comum
-          $CurrentVersion = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-          Set-ItemProperty -Path $CurrentVersion -Name "ProductName" -Value "Windows 10 Pro" -Force
-          Set-ItemProperty -Path $CurrentVersion -Name "EditionID" -Value "Professional" -Force
+          :: Injeta a NVIDIA GeForce RTX 4070 no Registro
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" /v "DriverDesc" /t REG_SZ /d "NVIDIA GeForce RTX 4070" /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" /v "ProviderName" /t REG_SZ /d "NVIDIA" /f
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000" /v "HardwareInformation.AdapterString" /t REG_SZ /d "NVIDIA GeForce RTX 4070" /f
 
-          # 4. Camuflagem profunda da Placa de Vídeo (Fingir NVIDIA GeForce RTX 4070)
-          # Isso altera a string que o jogo lê ao verificar os adaptadores gráficos do Windows
-          $DisplayClassKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
-          Get-ChildItem -Path $DisplayClassKey | ForEach-Object {
-              $SubKey = $_.PsPath
-              if (Get-ItemProperty -Path $SubKey -Name "DriverDesc" -ErrorAction SilentlyContinue) {
-                  Set-ItemProperty -Path $SubKey -Name "DriverDesc" -Value "NVIDIA GeForce RTX 4070" -Force
-                  Set-ItemProperty -Path $SubKey -Name "ProviderName" -Value "NVIDIA" -Force
-                  Set-ItemProperty -Path $SubKey -Name "MatchingDeviceId" -Value "PCI\VEN_10DE&DEV_2704&SUBSYS_00000000&REV_A1" -Force
-              }
-          }
-          
-          # 5. Apagar rastro de serviços de convidados de máquinas virtuais (Bypass Avançado)
-          $ServicesToKill = @("vmicguestvc", "vmicheartbeat", "vmickvpexchange", "vmicrdv", "vmicshutdown", "vmictimesync", "vmicvmsession", "vmicvss")
-          ForEach ($Service in $ServicesToKill) {
-              Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$Service" -Name "Start" -Value 4 -ErrorAction SilentlyContinue
-          }
-
-          Write-Host "Bypass profundo e GPU RTX 4070 configurados!" -ForegroundColor Green
+          :: Desativa os servicos nativos do Hyper-V
+          sc config vmicguestvc start= disabled
+          sc config vmicheartbeat start= disabled
+          sc config vmickvpexchange start= disabled
+          sc config vmicrdv start= disabled
+          sc config vmicshutdown start= disabled
+          sc config vmictimesync start= disabled
+          sc config vmicvmsession start= disabled
+          sc config vmicvss start= disabled
 
       - name: 🚀 Tweaks de Desempenho Extremo (Gamer)
         shell: pwsh
@@ -82,8 +67,8 @@ jobs:
       - name: 🌐 Instalar e Conectar o Tailscale via Chocolatey
         shell: pwsh
         run: |
-          Write-Host "Instalando Tailscale e DirectX..." -ForegroundColor Green
-          choco install tailscale directx -y --no-progress
+          Write-Host "Instalando Tailscale..." -ForegroundColor Green
+          choco install tailscale -y --no-progress
           Start-Sleep -Seconds 5
           
           Write-Host "Conectando ao Tailscale..." -ForegroundColor Green
@@ -96,7 +81,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "==========================================================" -ForegroundColor Green
-          Write-Host "Windows 10 Pro Virtual Otimizado e Camuflado!" -ForegroundColor Green
+          Write-Host "Windows 10 Pro Virtual Pronto!" -ForegroundColor Green
           Write-Host "CREDENCIAIS NO WINDOWS APP:" -ForegroundColor Yellow
           Write-Host "Usuário: jogos" -ForegroundColor Cyan
           Write-Host "Senha: Senha123!" -ForegroundColor Cyan
