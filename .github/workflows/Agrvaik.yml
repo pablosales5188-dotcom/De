@@ -1,0 +1,85 @@
+name: "AnDos: Linux XFCE Max Performance"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📂 Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🚀 Atualizar Sistema e Instalar Interface Gráfica (XFCE)
+        run: |
+          echo "Atualizando listas de pacotes..."
+          sudo apt-get update
+          
+          echo "Instalando o ambiente gráfico XFCE e o servidor RDP (Xrdp)..."
+          sudo apt-get install -y xfce4 xfce4-goodies xrdp
+          
+          echo "Configurando a sessão padrão do XFCE..."
+          echo "xfce4-session" > ~/.xsession
+          sudo systemctl restart xrdp
+
+      - name: 💾 Configurar Memória Swap Otimizada
+        run: |
+          echo "Removendo swap existente para evitar conflitos..."
+          sudo swapoff -a -v || true
+          sudo rm -f /swapfile || true
+          
+          echo "Criando arquivo Swap de 4GB para estabilidade de performance..."
+          sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+      - name: 👥 Criar Usuário Dedicado
+        run: |
+          echo "Criando usuário exclusivo 'jogos'..."
+          # Cria o usuário com a senha 'Senha123!' previamente criptografada
+          sudo useradd -m -s /bin/bash -p "$(openssl passwd -1 Senha123!)" jogos
+          
+          # Adiciona o usuário ao grupo administrativo (sudo)
+          sudo usermod -aG sudo jogos
+          
+          # Garante que o ambiente gráfico padrão do usuário jogos também seja o XFCE
+          echo "xfce4-session" | sudo tee /home/jogos/.xsession
+          sudo chown jogos:jogos /home/jogos/.xsession
+
+      - name: 🌐 Instalar e Conectar via Tailscale
+        run: |
+          echo "Baixando o script de instalação oficial do Tailscale..."
+          curl -fsSL https://tailscale.com -o install_tailscale.sh
+          
+          echo "Executando o instalador via Bash..."
+          sudo bash install_tailscale.sh
+          
+          echo "Autenticando na sua rede privada Tailscale..."
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=andos-linux-pc --accept-routes
+
+      - name: 🟢 Exibir Credenciais e Manter Ativo
+        run: |
+          # Captura o endereço IP do Tailscale atribuído à máquina
+          TAILSCALE_IP=$(tailscale ip -4)
+          
+          clear
+          echo "=========================================================="
+          echo "   AnDos: Linux XFCE Performance Iniciado com Sucesso!   "
+          echo "=========================================================="
+          echo "COPIE E COLE ESSES DADOS NO SEU WINDOWS APP / RDP CLIENT:"
+          echo ""
+          echo " -> PC Name / IP:   $TAILSCALE_IP"
+          echo " -> User Name:      jogos"
+          echo " -> Password:       Senha123!"
+          echo ""
+          echo "=========================================================="
+          echo "Aguardando conexões remotas. O workflow fechará após o tempo limite."
+          
+          # Mantém a execução ativa em segundo plano
+          for i in {1..360}; do
+              sleep 60
+          done
+          
