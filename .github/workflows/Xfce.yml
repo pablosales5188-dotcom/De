@@ -1,0 +1,73 @@
+name: Linux Mint XFCE Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desktop-session:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🔐 Instalar e Conectar o Tailscale (Modo Seguro)
+        run: |
+          echo "Baixando o pacote estável do Tailscale..."
+          curl -sGS "https://tailscale.com" -o tailscale.tgz
+          tar -xzf tailscale.tgz
+          cd tailscale_*_amd64
+          
+          echo "Iniciando o serviço Tailscale no modo Userspace..."
+          sudo ./tailscaled --tun=userspace-socks --socks5-server=localhost:1055 --state=mem: &
+          sleep 5
+          
+          echo "Conectando à sua rede Tailscale..."
+          sudo ./tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=linux-mint-xfce --accept-routes
+          
+          echo "IP do seu Linux Virtual:"
+          ./tailscale ip -4
+
+      - name: 🖥️ Instalar a Interface Gráfica do Linux Mint XFCE e VNC
+        run: |
+          sudo apt-get update
+          echo "Instalando ambiente de desktop XFCE do Linux Mint..."
+          # Instala a interface desktop leve XFCE e o servidor de tela remota TigerVNC
+          sudo apt-get install -y xfce4 xfce4-goodies tigervnc-standalone-server tigervnc-common dbus-x11
+
+          echo "Configurando perfil de inicialização gráfica..."
+          # Configura o VNC para abrir a interface do XFCE assim que ligar
+          mkdir -p ~/.vnc
+          echo '#!/bin/sh' > ~/.vnc/xstartup
+          echo 'unset SESSION_MANAGER' >> ~/.vnc/xstartup
+          echo 'unset DBUS_SESSION_BUS_ADDRESS' >> ~/.vnc/xstartup
+          echo 'startxfce4 &' >> ~/.vnc/xstartup
+          chmod +x ~/.vnc/xstartup
+
+      - name: 🚀 Iniciar Servidor de Tela XFCE
+        run: |
+          echo "Iniciando a Área de Trabalho em segundo plano na porta 5901..."
+          # Define a senha do acesso remoto como "Senha123!" e inicia o servidor na tela :1
+          echo "Senha123!" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+          
+          # Inicia o servidor de vídeo virtual XFCE
+          vncserver :1 -geometry 1280x720 -depth 24
+          echo "Área de trabalho Linux Mint XFCE pronta!"
+
+      - name: 🟢 Manter a Máquina Viva
+        run: |
+          echo "=========================================================="
+          echo "PC Linux Mint XFCE Pronto e Conectado!"
+          echo "Dispositivo no Tailscale: linux-mint-xfce"
+          echo "COMO CONECTAR NA SUA TELA:"
+          echo "1. Abra qualquer aplicativo cliente VNC (como o VNC Viewer)"
+          echo "2. Conecte usando o endereço: IP_DO_TAILSCALE:5901"
+          echo "3. Digite a senha: Senha123!"
+          echo "=========================================================="
+          
+          # Loop para manter a máquina ativa por até 6 horas
+          for i in {1..360}; do
+            sleep 60
+          done
+          
