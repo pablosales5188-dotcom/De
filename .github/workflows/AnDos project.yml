@@ -1,0 +1,91 @@
+name: "AnDos: Windows 10 Max Performance"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: 📂 Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 👥 Criar Usuário Gamer Dedicado
+        shell: pwsh
+        run: |
+          Write-Host "Criando usuário exclusivo 'jogos'..." -ForegroundColor Green
+          $Password = ConvertTo-SecureString "Senha123!" -AsPlainText -Force
+          New-LocalUser -Name "jogos" -Password $Password -Description "Usuario Gamer" -FullName "Jogador"
+          Add-LocalGroupMember -Group "Administrators" -Member "jogos"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "jogos"
+
+      - name: 🔒 Configurar Acesso RDP Otimizado
+        shell: pwsh
+        run: |
+          Write-Host "Liberando e configurando conexoes remotas..." -ForegroundColor Green
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+
+      - name: 🚀 Tweaks de Desempenho Max Performance (Lite Mode)
+        shell: pwsh
+        run: |
+          Write-Host "Aplicando otimizacoes de desempenho do AnDos..." -ForegroundColor Green
+          
+          # Ativa o plano de energia de Desempenho Máximo (Ultimate Performance)
+          powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+          
+          # Ajusta o RDP para forçar maior taxa de quadros (60 FPS) e menor compressão de cor para reduzir latência
+          $RdpKey = 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
+          New-ItemProperty -Path $RdpKey -Name "BPP" -Value 16 -PropertyType DWORD -Force | Out-Null
+          New-ItemProperty -Path $RdpKey -Name "MinFrameRate" -Value 60 -PropertyType DWORD -Force | Out-Null
+          
+          # Desativa efeitos visuais pesados (Animações de janelas, sombras, transições)
+          $VisualFXPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+          if (-not (Test-Path $VisualFXPath)) { New-Item -Path $VisualFXPath -Force | Out-Null }
+          Set-ItemProperty -Path $VisualFXPath -Name "VisualFXSetting" -Value 2
+          
+          # Desativa serviços de telemetria e diagnósticos em segundo plano para liberar CPU e RAM
+          Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service -Name "DiagTrack" -ErrorAction SilentlyContinue
+          
+          # Otimização de Rede (Redução de latência / TCP No Delay)
+          $InterfacesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
+          Get-ChildItem $InterfacesPath | ForEach-Object {
+              New-ItemProperty -Path $_.PsPath -Name "TcpAckFrequency" -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue | Out-Null
+              New-ItemProperty -Path $_.PsPath -Name "TCPNoDelay" -Value 1 -PropertyType DWORD -Force -ErrorAction SilentlyContinue | Out-Null
+          }
+
+      - name: 🌐 Instalar e Conectar via Tailscale
+        shell: pwsh
+        run: |
+          Write-Host "Instalando o cliente Tailscale corporativo..." -ForegroundColor Green
+          choco install tailscale -y --no-progress
+          Start-Sleep -Seconds 5
+          
+          Write-Host "Autenticando na rede privada..." -ForegroundColor Green
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=andos-max-pc --accept-routes
+          
+          Write-Host "Seu endereço IP privado do Tailscale para conexao:" -ForegroundColor Cyan
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+
+      - name: 🟢 Manter o Ambiente Ativo para Conexão
+        shell: pwsh
+        run: |
+          Write-Host "==========================================================" -ForegroundColor Green
+          Write-Host "   AnDos: Windows 10 Max Performance Iniciado com Sucesso! " -ForegroundColor Green
+          Write-Host "==========================================================" -ForegroundColor Green
+          Write-Host "INFORMAÇÕES DE CONEXÃO (Use o Windows App / Remote Desktop):" -ForegroundColor Yellow
+          Write-Host "Usuário: jogos" -ForegroundColor Cyan
+          Write-Host "Senha: Senha123!" -ForegroundColor Cyan
+          Write-Host "==========================================================" -ForegroundColor Green
+          Write-Host "Aguardando conexões remotas. O workflow será encerrado automaticamente ao atingir o limite de tempo." -ForegroundColor Yellow
+          
+          # Loop de espera seguro (mantém o runner ativo para sua sessão de uso)
+          $i = 0
+          while ($i -lt 360) {
+              Start-Sleep -Seconds 60
+              $i++
+          }
+          
