@@ -1,0 +1,67 @@
+name: Linux Mint XFCE Novo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desktop-session:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: 🔐 Instalar e Conectar o Tailscale (Caminho Direto)
+        run: |
+          echo "=== INSTALANDO O TAILSCALE ==="
+          # Baixa e instala a versão oficial direto usando o script estático estável da própria Tailscale
+          curl -fsSL https://tailscale.com | sudo sh
+          
+          echo "=== INICIANDO SERVICO USERSPACE ==="
+          # Para qualquer serviço conflitante que o instalador possa ter tentado abrir
+          sudo systemctl stop tailscaled || true
+          
+          # Inicializa o daemon do Tailscale em segundo plano no modo seguro Userspace
+          sudo /usr/sbin/tailscaled --tun=userspace-socks --socks5-server=localhost:1055 --state=mem: &
+          sleep 5
+          
+          echo "=== CONECTANDO AO TAILSCALE ==="
+          # Usamos o caminho completo (/usr/bin/tailscale) para evitar o erro de "command not found"
+          sudo /usr/bin/tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=linux-mint-xfce --accept-routes
+          
+          echo "IP do seu Linux Virtual:"
+          /usr/bin/tailscale ip -4
+
+      - name: 🖥️ Instalar a Interface Gráfica do Linux Mint XFCE e VNC
+        run: |
+          echo "=== INSTALANDO DESKTOP E VNC ==="
+          sudo apt-get update
+          sudo apt-get install -y xfce4 xfce4-goodies tigervnc-standalone-server tigervnc-common dbus-x11
+
+          mkdir -p ~/.vnc
+          echo '#!/bin/sh' > ~/.vnc/xstartup
+          echo 'unset SESSION_MANAGER' >> ~/.vnc/xstartup
+          echo 'unset DBUS_SESSION_BUS_ADDRESS' >> ~/.vnc/xstartup
+          echo 'startxfce4 &' >> ~/.vnc/xstartup
+          chmod +x ~/.vnc/xstartup
+
+      - name: 🚀 Iniciar Servidor de Tela XFCE
+        run: |
+          echo "Senha123!" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+          
+          vncserver :1 -geometry 1280x720 -depth 24
+          echo "=== MULTIDISK DESKTOP PRONTO ==="
+
+      - name: 🟢 Manter a Máquina Viva
+        run: |
+          echo "=========================================================="
+          echo "PC Linux Mint XFCE Pronto e Conectado!"
+          echo "Dispositivo no Tailscale: linux-mint-xfce"
+          echo "Conecte usando o VNC Viewer no endereco: IP_DO_TAILSCALE:5901"
+          echo "Senha: Senha123!"
+          echo "=========================================================="
+          for i in {1..360}; do
+            sleep 60
+          done
+          
